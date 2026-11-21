@@ -1,4 +1,6 @@
-{/* Code displayed in the copy control above */}name: UFONO Galaxy Windows EXE
+
+name: UFONO Galaxy Windows EXE
+
 on:
   workflow_dispatch:
 
@@ -7,108 +9,237 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: read
+
     steps:
-      - name: Stahnout hru
+      - name: Stahnout projekt
         uses: actions/checkout@v4
-      - name: Pripravit Node.js
+
+      - name: Nastavit Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Pripravit opraveny spoustec
+
+      - name: Vytvorit Windows spoustec
         shell: pwsh
         run: |
-          New-Item -ItemType Directory desktop -Force | Out-Null
+          New-Item -ItemType Directory -Path desktop -Force | Out-Null
+
           @'
           'use strict';
-          const {app, BrowserWindow, dialog, shell} = require('electron');
+
+          const { app, BrowserWindow, dialog } = require('electron');
           const fs = require('node:fs');
           const path = require('node:path');
-          let server = null;
-          let mainWindow = null;
+          const http = require('node:http');
 
-          function showError(err) {
-            const message = err && (err.stack || err.message) || String(err);
+          let mainWindow = null;
+          let gameServer = null;
+
+          function showError(error) {
+            const message = error?.stack || String(error);
             try {
-              const log = path.join(app.getPath('userData'), 'ufono-start-error.txt');
-              fs.mkdirSync(path.dirname(log), {recursive:true});
-              fs.writeFileSync(log, message, 'utf8');
-            } catch (_) {}
-            dialog.showErrorBox('UFONO Galaxy - chyba pri spusteni', message + '\n\nPosli nam prosim tento text chyby.');
+              fs.writeFileSync(
+                path.join(app.getPath('userData'), 'ufono-error.txt'),
+                message,
+                'utf8'
+              );
+            } catch (ignored) {}
+
+            dialog.showErrorBox(
+              'UFONO Galaxy - chyba',
+              message
+            );
           }
 
-          function start() {
+          function showStartup() {
             mainWindow = new BrowserWindow({
-              width:1200, height:800, minWidth:640, minHeight:480,
-              title:'UFONO Galaxy', show:true, autoHideMenuBar:true,
-              backgroundColor:'#090e27',
-              webPreferences:{nodeIntegration:false, contextIsolation:true, sandbox:true}
+              width: 1200,
+              height: 800,
+              minWidth: 640,
+              minHeight: 480,
+              show: true,
+              center: true,
+              autoHideMenuBar: true,
+              backgroundColor: '#090e27',
+              title: 'UFONO Galaxy',
+              webPreferences: {
+                nodeIntegration: false,
+                contextIsolation: true,
+                sandbox: true
+              }
             });
-            mainWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent('<html><body style="background:#090e27;color:white;font:20px sans-serif;padding:50px">UFONO Galaxy se spousti...</body></html>'));
 
-            const dir = path.join(app.getPath('userData'), 'ufono-game');
-            fs.mkdirSync(dir, {recursive:true});
-            fs.cpSync(path.join(app.getAppPath(),'public'),path.join(dir,'public'),{recursive:true,force:true});
-            fs.copyFileSync(path.join(app.getAppPath(),'server.js'),path.join(dir,'server.js'));
-            server = require(path.join(dir, 'server.js'));
-            server.once('error', showError);
-            server.listen(0,'127.0.0.1',()=>{
-              const origin = 'http://127.0.0.1:' + server.address().port;
-              mainWindow.loadURL(origin).catch(showError);
-              mainWindow.webContents.setWindowOpenHandler(({url})=>{
-                if (/^https:\/\//i.test(url)) shell.openExternal(url);
-                return {action:'deny'};
-              });
-              mainWindow.webContents.on('will-navigate',(event,url)=>{
-                if (!url.startsWith(origin + '/')) event.preventDefault();
-              });
+            const loading = `
+              <html>
+                <head>
+                  <meta charset="utf-8">
+                </head>
+                <body style="
+                  margin:0;
+                  background:#090e27;
+                  color:white;
+                  display:flex;
+                  align-items:center;
+                  justify-content:center;
+                  height:100vh;
+                  font-family:Arial,sans-serif;
+                  text-align:center;
+                ">
+                  <div>
+                    <h1>UFONO GALAXY</h1>
+                    <p>Hra se spousti...</p>
+                  </div>
+                </body>
+              </html>
+            `;
+
+            mainWindow.loadURL(
+              'data:text/html;charset=utf-8,' +
+              encodeURIComponent(loading)
+            ).catch(showError);
+
+            mainWindow.webContents.on(
+              'render-process-gone',
+              (event, details) => {
+                showError(
+                  new Error('Graficky proces skoncil: ' + details.reason)
+                );
+              }
+            );
+
+            mainWindow.webContents.on(
+              'did-fail-load',
+              (event, code, description, url, isMainFrame) => {
+                if (isMainFrame && code !== -3) {
+                  showError(
+                    new Error('Nacitani selhalo: ' + description)
+                  );
+                }
+              }
+            );
+          }
+
+          async function startGame() {
+            showStartup();
+
+            const gameDirectory = path.join(
+              app.getPath('userData'),
+              'ufono-game'
+            );
+
+            fs.mkdirSync(gameDirectory, { recursive: true });
+
+            const source = app.getAppPath();
+
+            fs.cpSync(
+              path.join(source, 'public'),
+              path.join(gameDirectory, 'public'),
+              { recursive: true, force: true }
+            );
+
+            fs.copyFileSync(
+              path.join(source, 'server.js'),
+              path.join(gameDirectory, 'server.js')
+            );
+
+            gameServer = require(
+              path.join(gameDirectory, 'server.js')
+            );
+
+            gameServer.once('error', showError);
+
+            gameServer.listen(0, '127.0.0.1', async () => {
+              const address =
+                'http://127.0.0.1:' + gameServer.address().port;
+
+              try {
+                await mainWindow.loadURL(address);
+                mainWindow.show();
+                mainWindow.focus();
+              } catch (error) {
+                showError(error);
+              }
             });
           }
 
           process.on('uncaughtException', showError);
           process.on('unhandledRejection', showError);
-          const lock = app.requestSingleInstanceLock();
-          if (!lock) app.quit();
-          else {
-            app.on('second-instance',()=>{if(mainWindow){mainWindow.show(); mainWindow.focus();}});
-            app.whenReady().then(start).catch(showError);
+
+          const singleInstance = app.requestSingleInstanceLock();
+
+          if (!singleInstance) {
+            app.quit();
+          } else {
+            app.on('second-instance', () => {
+              if (mainWindow) {
+                mainWindow.show();
+                mainWindow.focus();
+              }
+            });
+
+            app.whenReady().then(startGame).catch(showError);
           }
-          app.on('window-all-closed',()=>app.quit());
-          app.on('before-quit',()=>{try{if(server && server.listening) server.close();}catch(_){}});
+
+          app.on('window-all-closed', () => {
+            app.quit();
+          });
+
+          app.on('before-quit', () => {
+            if (gameServer && gameServer.listening) {
+              gameServer.close();
+            }
+          });
           '@ | Set-Content -Encoding utf8 desktop/main.cjs
+
           @'
           appId: cz.ufono.galaxy
           productName: UFONO Galaxy
+
           directories:
             output: dist
+
           files:
             - server.js
             - public/**/*
             - desktop/main.cjs
             - package.json
+
           extraMetadata:
             main: desktop/main.cjs
+
           asar: false
+
           win:
             target:
               - target: portable
-                arch: [x64]
+                arch:
+                  - x64
+
           artifactName: UFONO-Galaxy-${version}-${arch}.${ext}
           '@ | Set-Content -Encoding utf8 desktop/builder.yml
-      - name: Sestavit opravene EXE
+
+      - name: Nainstalovat nastroje
         shell: pwsh
         run: |
           npm install --no-save --no-package-lock electron@35 electron-builder@26
-          npx electron-builder --win portable --x64 --publish never --config desktop/builder.yml
-      - name: Overit EXE
+
+      - name: Sestavit Windows EXE
         shell: pwsh
         run: |
-          $exe = Get-ChildItem dist -Filter '*.exe' | Select-Object -First 1
-          if (-not $exe) { throw 'EXE nebylo vytvoreno' }
-          Write-Host $exe.FullName
-      - name: Stahnout hru pro Windows
+          npx electron-builder --win portable --x64 --publish never --config desktop/builder.yml
+
+      - name: Zkontrolovat vysledek
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path dist -Filter "*.exe" | Select-Object -First 1
+          if (-not $exe) {
+            throw "Windows EXE nebylo vytvoreno"
+          }
+          Write-Host "Hotovy soubor: $($exe.FullName)"
+
+      - name: Nahrat hru ke stazeni
         uses: actions/upload-artifact@v4
         with:
           name: UFONO-Galaxy-Windows-OPRAVA
           path: dist/*.exe
           if-no-files-found: error
-  
