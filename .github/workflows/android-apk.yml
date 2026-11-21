@@ -23,16 +23,17 @@ jobs:
           java-version: '17'
 
       - name: Nastavit Android SDK
-        uses: android-actions/setup-android@v3
+        run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
 
       - name: Nastavit Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-
-      - name: Nainstalovat Android SDK 35
-        run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Sestavit UFONO Galaxy APK
         run: gradle --no-daemon assembleDebug
@@ -47,4 +48,3 @@ jobs:
           name: UFONO-Galaxy-Android-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-
