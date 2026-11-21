@@ -11,7 +11,7 @@ jobs:
       contents: read
 
     steps:
-      - name: Stahnout projekt
+      - name: Stahnout hru
         uses: actions/checkout@v4
 
       - name: Nastavit Node.js
@@ -19,240 +19,347 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Pripravit Windows aplikaci
+      - name: Opravit vzhled a hudbu
+        shell: pwsh
+        run: |
+          @'
+          const fs = require('fs');
+          const file = 'public/index.html';
+          let html = fs.readFileSync(file, 'utf8');
+
+          function change(oldText, newText, label) {
+            const parts = html.split(oldText);
+            if (parts.length !== 2) {
+              throw new Error('Nenalezena jedina cast: ' + label);
+            }
+            html = parts.join(newText);
+          }
+
+          change(
+            'function v5LiveTable(){',
+            `function v5DressedAlien(avatar, suit) {
+              const valid = V5_SUITS.some(x => x.id === suit);
+              const id = valid ? suit : 'classic';
+              return '<span class="v5-dressed suit-' + id + '">' +
+                '<span class="v5-helmet"></span>' +
+                alienSvg(avatar) +
+                '<span class="v5-armor"><i></i></span>' +
+                '<span class="v5-halo"></span></span>';
+            }
+            function v5LiveTable(){`,
+            'Oblikani postav'
+          );
+
+          change(
+            '\${alienSvg(p.avatar)}<span class="gear">\${v5SuitIcon(i===0?profile.v5Suit:V5_SUITS[i%V5_SUITS.length].id)}</span>',
+            '\${v5DressedAlien(p.avatar,i===0?profile.v5Suit:V5_SUITS[i%V5_SUITS.length].id)}',
+            'Obleky u stolu'
+          );
+
+          change(
+            'let id=G.players[0]?.arena||profile.v5Arena;let a=V5_ARENAS.find(x=>x.id===id)||V5_ARENAS[0];',
+            "let id=mode==='solo'?profile.v5Arena:(G.players[0]?.arena||profile.v5Arena);let a=V5_ARENAS.find(x=>x.id===id)||V5_ARENAS[0];",
+            'Vyber areny'
+          );
+
+          change(
+            "if(a.id!=='nebula')field.classList.add('v5-'+a.id);for(let [key,idx]",
+            "if(a.id!=='nebula')field.classList.add('v5-'+a.id);let table=$('liveTable');if(table){table.classList.remove(...V5_ARENAS.slice(1).map(x=>'v5-'+x.id));if(a.id!=='nebula')table.classList.add('v5-'+a.id)}for(let [key,idx]",
+            'Prostredi stolu'
+          );
+
+          change(
+            "tone(f,3.9,track==='pulsar'?'triangle':'sine',.007,i*.18)",
+            "tone(f,3.9,track==='pulsar'?'triangle':'sine',.027,i*.18)",
+            'Hlasitost hudby 1'
+          );
+
+          change(
+            "tone(c[k]*2,.34,'sine',.004,.45+j*.48)",
+            "tone(c[k]*2,.34,'sine',.016,.45+j*.48)",
+            'Hlasitost hudby 2'
+          );
+
+          change(
+            "tone(n,3.3,'sine',.009,j*.07)",
+            "tone(n,3.3,'sine',.030,j*.07)",
+            'Hlasitost hudby 3'
+          );
+
+          change(
+            "t==='horizon'?'triangle':'sine',.008,.22+j*.39",
+            "t==='horizon'?'triangle':'sine',.021,.22+j*.39",
+            'Hlasitost hudby 4'
+          );
+
+          change(
+            "tone(70,.085,'triangle',.008,j*.46)",
+            "tone(70,.085,'triangle',.018,j*.46)",
+            'Hlasitost hudby 5'
+          );
+
+          const css = `
+          <style>
+          .v5-dressed {
+            display:inline-block;
+            position:relative;
+            width:100px;
+            height:112px;
+            vertical-align:middle;
+            isolation:isolate;
+            --armor:#c6d8f2;
+            --edge:#819bc7;
+            --glow:#8dbbff;
+          }
+          .v5-dressed .portrait {
+            display:block;
+            position:absolute;
+            left:8%;
+            top:2%;
+            width:84%;
+            height:88%;
+            z-index:2;
+            filter:drop-shadow(0 3px 3px #0008);
+          }
+          .v5-helmet {
+            position:absolute;
+            inset:0 12% 16%;
+            border:5px solid var(--edge);
+            border-radius:48% 48% 40% 40%;
+            z-index:1;
+            box-shadow:0 0 16px var(--glow);
+          }
+          .v5-armor {
+            position:absolute;
+            z-index:3;
+            bottom:0;
+            left:7%;
+            width:86%;
+            height:40%;
+            border:3px solid var(--edge);
+            border-radius:45% 45% 22% 22%;
+            background:linear-gradient(125deg,#fff9,var(--armor) 40%,var(--edge));
+            box-shadow:0 0 15px var(--glow),0 5px 7px #0008;
+          }
+          .v5-armor:before,
+          .v5-armor:after {
+            content:"";
+            position:absolute;
+            top:18%;
+            width:18%;
+            height:55%;
+            border-radius:50%;
+            border:2px solid var(--edge);
+            background:var(--armor);
+          }
+          .v5-armor:before {left:-10%}
+          .v5-armor:after {right:-10%}
+          .v5-armor i {
+            position:absolute;
+            left:34%;
+            top:20%;
+            width:32%;
+            height:45%;
+            border:2px solid #fffa;
+            border-radius:7px;
+            background:#17234e9c;
+          }
+          .v5-halo {
+            position:absolute;
+            left:24%;
+            top:3%;
+            width:52%;
+            height:14%;
+            border:3px solid var(--armor);
+            border-radius:50%;
+            z-index:4;
+            box-shadow:0 0 12px var(--glow);
+          }
+          .suit-sparkle {
+            --armor:#f9caff;
+            --edge:#a866e6;
+            --glow:#dc91ff;
+          }
+          .suit-royal {
+            --armor:#ffe69d;
+            --edge:#bd8524;
+            --glow:#ffdd67;
+          }
+          .suit-robot {
+            --armor:#b9c8d8;
+            --edge:#62768a;
+            --glow:#76eaff;
+          }
+          .suit-rainbow {
+            --armor:#a6efff;
+            --edge:#e267bd;
+            --glow:#ff91d9;
+          }
+          .suit-rainbow .v5-armor {
+            background:linear-gradient(125deg,#ff8bb9,#ffe18b,#72defb,#b89dff);
+          }
+          .suit-comet {
+            --armor:#ffd29e;
+            --edge:#e97743;
+            --glow:#ff9858;
+          }
+          .live-table .table-player .gear {
+            display:none;
+          }
+          .live-table .table-player .v5-dressed {
+            transform:scale(.82);
+            transform-origin:center top;
+            margin-bottom:-15px;
+          }
+          .live-table.v5-moon {
+            background:radial-gradient(circle at 82% 18%,#e0edff 0 6%,transparent 7%),
+            radial-gradient(ellipse at 50% 75%,#7992b2,#182440 52%,#050914);
+          }
+          .live-table.v5-jungle {
+            background:radial-gradient(circle at 15% 17%,#57ffc2 0 5%,transparent 6%),
+            radial-gradient(ellipse at 50% 75%,#277c61,#10342d 55%,#041811);
+          }
+          .live-table.v5-crystal {
+            background:radial-gradient(circle at 80% 18%,#f1bbff 0 6%,transparent 7%),
+            radial-gradient(ellipse at 50% 75%,#965be0,#361750 55%,#11061e);
+          }
+          .live-table.v5-solar {
+            background:radial-gradient(circle at 82% 18%,#fff0a2 0 8%,transparent 9%),
+            radial-gradient(ellipse at 50% 75%,#f5aa4c,#633149 55%,#1e0b23);
+          }
+          </style>`;
+
+          change('</body></html>', css + '</body></html>', 'Styly');
+
+          fs.writeFileSync(file, html, 'utf8');
+          console.log('Opravy vzhledu a hudby pripraveny.');
+          '@ | Set-Content -Encoding utf8 patch.cjs
+
+          node patch.cjs
+
+      - name: Pripravit Windows spoustec
         shell: pwsh
         run: |
           New-Item -ItemType Directory desktop -Force | Out-Null
-
           @'
           'use strict';
+          const {app,BrowserWindow,dialog}=require('electron');
+          const fs=require('node:fs');
+          const path=require('node:path');
+          let win=null;
+          let server=null;
 
-          const { app, BrowserWindow, dialog } = require('electron');
-          const fs = require('node:fs');
-          const path = require('node:path');
-
-          let mainWindow = null;
-          let gameServer = null;
-          let starting = false;
-
-          function showError(error) {
-            const message = error?.stack || String(error);
-
+          function error(e){
+            const msg=e?.stack||String(e);
             try {
-              const logFile = path.join(
-                app.getPath('userData'),
-                'ufono-error.txt'
+              fs.writeFileSync(
+                path.join(app.getPath('userData'),'ufono-error.txt'),
+                msg,'utf8'
               );
-
-              fs.writeFileSync(logFile, message, 'utf8');
-            } catch (ignored) {}
-
-            dialog.showErrorBox(
-              'UFONO Galaxy - chyba pri spusteni',
-              message
-            );
+            }catch(_){}
+            dialog.showErrorBox('UFONO Galaxy - chyba',msg);
           }
 
-          function createWindow() {
-            mainWindow = new BrowserWindow({
-              width: 1200,
-              height: 800,
-              minWidth: 640,
-              minHeight: 480,
-              show: true,
-              center: true,
-              autoHideMenuBar: true,
-              title: 'UFONO Galaxy',
-              backgroundColor: '#090e27',
-              webPreferences: {
-                nodeIntegration: false,
-                contextIsolation: true,
-                sandbox: true
+          async function start(){
+            win=new BrowserWindow({
+              width:1200,height:800,
+              minWidth:640,minHeight:480,
+              show:true,center:true,
+              autoHideMenuBar:true,
+              title:'UFONO Galaxy',
+              backgroundColor:'#090e27',
+              webPreferences:{
+                nodeIntegration:false,
+                contextIsolation:true,
+                sandbox:true
               }
             });
 
-            mainWindow.on('closed', () => {
-              mainWindow = null;
-            });
-
-            mainWindow.webContents.on(
+            win.webContents.on(
               'did-fail-load',
-              (event, code, description, url, isMainFrame) => {
-                if (isMainFrame && code !== -3) {
-                  showError(
-                    new Error(
-                      'Nacitani hry selhalo: ' + description
-                    )
-                  );
-                }
+              (event,code,description,url,isMainFrame)=>{
+                if(isMainFrame&&code!==-3)
+                  error(new Error(description));
               }
             );
 
-            mainWindow.webContents.on(
-              'render-process-gone',
-              (event, details) => {
-                showError(
-                  new Error(
-                    'Graficky proces skoncil: ' + details.reason
-                  )
-                );
-              }
+            const root=path.join(app.getPath('userData'),'ufono-game');
+            fs.mkdirSync(root,{recursive:true});
+            fs.cpSync(
+              path.join(app.getAppPath(),'public'),
+              path.join(root,'public'),
+              {recursive:true,force:true}
+            );
+            fs.copyFileSync(
+              path.join(app.getAppPath(),'server.js'),
+              path.join(root,'server.js')
             );
 
-            mainWindow.show();
-          }
-
-          async function startGame() {
-            if (starting) return;
-            starting = true;
-
-            createWindow();
-
-            try {
-              const source = app.getAppPath();
-
-              const directory = path.join(
-                app.getPath('userData'),
-                'ufono-game'
-              );
-
-              fs.mkdirSync(directory, {
-                recursive: true
-              });
-
-              fs.cpSync(
-                path.join(source, 'public'),
-                path.join(directory, 'public'),
-                {
-                  recursive: true,
-                  force: true
-                }
-              );
-
-              fs.copyFileSync(
-                path.join(source, 'server.js'),
-                path.join(directory, 'server.js')
-              );
-
-              gameServer = require(
-                path.join(directory, 'server.js')
-              );
-
-              gameServer.once('error', showError);
-
-              gameServer.listen(
-                0,
-                '127.0.0.1',
-                async () => {
-                  const address =
-                    'http://127.0.0.1:' +
-                    gameServer.address().port +
-                    '/';
-
-                  try {
-                    if (mainWindow && !mainWindow.isDestroyed()) {
-                      await mainWindow.loadURL(address);
-                      mainWindow.show();
-                      mainWindow.focus();
-                    }
-                  } catch (error) {
-                    if (error.code !== -3 &&
-                        error.errno !== -3) {
-                      showError(error);
-                    }
-                  }
-                }
-              );
-
-            } catch (error) {
-              showError(error);
-            }
-          }
-
-          process.on('uncaughtException', showError);
-          process.on('unhandledRejection', showError);
-
-          const lock = app.requestSingleInstanceLock();
-
-          if (!lock) {
-            app.quit();
-          } else {
-            app.on('second-instance', () => {
-              if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.show();
-                mainWindow.focus();
+            server=require(path.join(root,'server.js'));
+            server.once('error',error);
+            server.listen(0,'127.0.0.1',async()=>{
+              try {
+                const url='http://127.0.0.1:'+server.address().port+'/';
+                await win.loadURL(url);
+                win.show();
+                win.focus();
+              }catch(e){
+                if(e.code!==-3&&e.errno!==-3)error(e);
               }
             });
-
-            app.whenReady()
-              .then(startGame)
-              .catch(showError);
           }
 
-          app.on('window-all-closed', () => {
-            app.quit();
-          });
+          process.on('uncaughtException',error);
+          process.on('unhandledRejection',error);
 
-          app.on('before-quit', () => {
-            try {
-              if (gameServer && gameServer.listening) {
-                gameServer.close();
+          if(!app.requestSingleInstanceLock()){
+            app.quit();
+          }else{
+            app.on('second-instance',()=>{
+              if(win&&!win.isDestroyed()){
+                win.show();
+                win.focus();
               }
-            } catch (ignored) {}
+            });
+            app.whenReady().then(start).catch(error);
+          }
+
+          app.on('window-all-closed',()=>app.quit());
+          app.on('before-quit',()=>{
+            if(server?.listening)server.close();
           });
           '@ | Set-Content -Encoding utf8 desktop/main.cjs
 
           @'
           appId: cz.ufono.galaxy
           productName: UFONO Galaxy
-
           directories:
             output: dist
-
           files:
             - server.js
             - public/**/*
             - desktop/main.cjs
             - package.json
-
           extraMetadata:
             main: desktop/main.cjs
-
           asar: false
-
           win:
             target:
               - target: portable
                 arch:
                   - x64
-
           artifactName: UFONO-Galaxy-${version}-${arch}.${ext}
           '@ | Set-Content -Encoding utf8 desktop/builder.yml
 
-      - name: Instalovat nastroje
+      - name: Sestavit aplikaci
         shell: pwsh
         run: |
           npm install --no-save --no-package-lock electron@35 electron-builder@26
-
-      - name: Sestavit Windows EXE
-        shell: pwsh
-        run: |
           npx electron-builder --win portable --x64 --publish never --config desktop/builder.yml
 
-      - name: Zkontrolovat EXE
-        shell: pwsh
-        run: |
-          $exe = Get-ChildItem -Path dist -Filter "*.exe" | Select-Object -First 1
-
-          if (-not $exe) {
-            throw "Windows EXE nebylo vytvoreno"
-          }
-
-          Write-Host "Soubor vytvoren: $($exe.FullName)"
-
-      - name: Nahrat opravenou hru
+      - name: Nahrat hru ke stazeni
         uses: actions/upload-artifact@v4
         with:
-          name: UFONO-Galaxy-Windows-OPRAVA
+          name: UFONO-Galaxy-Windows-KOSMETIKA-OPRAVA
           path: dist/*.exe
           if-no-files-found: error
