@@ -1,0 +1,72 @@
+name: UFONO Galaxy Windows EXE
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Download game
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare desktop launcher
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory desktop -Force | Out-Null
+          @'
+          const { app, BrowserWindow, shell } = require('electron');
+          const fs = require('node:fs');
+          const path = require('node:path');
+          let server;
+          app.whenReady().then(() => {
+            const root = path.join(app.getPath('userData'), 'ufono-game');
+            fs.mkdirSync(root, {recursive: true});
+            fs.cpSync(path.join(app.getAppPath(), 'public'), path.join(root,'public'), {recursive:true,force:true});
+            fs.copyFileSync(path.join(app.getAppPath(),'server.js'),path.join(root,'server.js'));
+            server = require(path.join(root, 'server.js'));
+            server.listen(0,'127.0.0.1',()=>{
+              const base = 'http://127.0.0.1:'+server.address().port;
+              const win = new BrowserWindow({width:1200,height:800,autoHideMenuBar:true,title:'UFONO Galaxy',webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true}});
+              win.loadURL(base);
+              win.webContents.setWindowOpenHandler(({url}) => { if(url.startsWith('https://'))shell.openExternal(url);return {action:'deny'}; });
+              win.webContents.on('will-navigate',(e,url)=>{if(!url.startsWith(base+'/'))e.preventDefault();});
+            });
+          });
+          app.on('window-all-closed',()=>app.quit());
+          app.on('before-quit',()=>{if(server?.listening)server.close()});
+          '@ | Set-Content -Encoding utf8 desktop/main.cjs
+          @'
+          appId: cz.ufono.galaxy
+          productName: UFONO Galaxy
+          directories:
+            output: dist
+          files:
+            - server.js
+            - public/**/*
+            - desktop/main.cjs
+            - package.json
+          extraMetadata:
+            main: desktop/main.cjs
+          asar: true
+          win:
+            target:
+              - target: portable
+                arch: [x64]
+          artifactName: UFONO-Galaxy-${version}-${arch}.${ext}
+          '@ | Set-Content -Encoding utf8 desktop/builder.yml
+      - name: Package Windows executable
+        shell: pwsh
+        run: |
+          npm install --no-save --no-package-lock electron@35 electron-builder@26
+          npx electron-builder --win portable --x64 --publish never --config desktop/builder.yml
+      - name: Upload Windows game
+        uses: actions/upload-artifact@v4
+        with:
+          name: UFONO-Galaxy-Windows
+          path: dist/*.exe
+          if-no-files-found: error
+  
