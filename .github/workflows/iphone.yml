@@ -1,0 +1,120 @@
+
+name: UFONO Galaxy iPhone
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - public/**
+      - .github/workflows/iphone.yml
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - name: Stahnout hru
+        uses: actions/checkout@v4
+
+      - name: Pripravit iPhone aplikaci
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp -r public/. dist/
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("dist")
+          html_file = root / "index.html"
+          html = html_file.read_text(encoding="utf-8")
+
+          html = html.replace(
+              'href="/manifest.webmanifest"',
+              'href="./manifest.webmanifest"'
+          )
+          html = html.replace(
+              'href="/icons/icon-192.png"',
+              'href="./icons/icon-192.png"'
+          )
+
+          html += "\n<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(console.warn)}</script>\n"
+
+          html_file.write_text(html, encoding="utf-8")
+
+          manifest_file = root / "manifest.webmanifest"
+          manifest = json.loads(
+              manifest_file.read_text(encoding="utf-8")
+          )
+
+          manifest["start_url"] = "./"
+          manifest["scope"] = "./"
+          manifest["display"] = "standalone"
+
+          for icon in manifest.get("icons", []):
+              icon["src"] = "./" + icon["src"].lstrip("/")
+
+          manifest_file.write_text(
+              json.dumps(manifest, ensure_ascii=False),
+              encoding="utf-8"
+          )
+
+          sw = """
+          const CACHE = 'ufono-iphone-v1';
+          const FILES = [
+            './',
+            './index.html',
+            './global.js',
+            './manifest.webmanifest',
+            './icons/icon-192.png',
+            './icons/icon-512.png'
+          ];
+          self.addEventListener('install', event => {
+            event.waitUntil(
+              caches.open(CACHE)
+                .then(cache => cache.addAll(FILES))
+                .then(() => self.skipWaiting())
+            );
+          });
+          self.addEventListener('activate', event => {
+            event.waitUntil(self.clients.claim());
+          });
+          self.addEventListener('fetch', event => {
+            if(event.request.method !== 'GET') return;
+            if(new URL(event.request.url).pathname.includes('/api/')) return;
+            event.respondWith(
+              fetch(event.request).catch(() =>
+                caches.match(event.request)
+              )
+            );
+          });
+          """
+          (root / "sw.js").write_text(sw, encoding="utf-8")
+          PY
+
+      - name: Nastavit GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Nahrat aplikaci
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+      - name: Zverejnit UFONO Galaxy
+        id: deploy
+        uses: actions/deploy-pages@v4
