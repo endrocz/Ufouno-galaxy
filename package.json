@@ -1,0 +1,1 @@
+{"name":"ufono-galaxy-global","version":"5.1.0","private":true,"description":"UFONO Galaxy installable PWA and global leaderboard prototype","scripts":{"start":"node server.js","dev":"node --watch server.js","test":"node --test test/server.test.js"},"engines":{"node":">=20"}}

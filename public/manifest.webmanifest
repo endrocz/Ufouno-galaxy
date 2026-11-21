@@ -1,0 +1,25 @@
+{
+  "name": "UFONO Galaxy – Galaktická karetní aréna",
+  "short_name": "UFONO Galaxy",
+  "lang": "cs",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#080c22",
+  "background_color": "#080c22",
+  "description": "Vesmírná karetní hra s ufouny, arénou, hudbou a galaktickým žebříčkem.",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
